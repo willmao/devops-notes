@@ -1,0 +1,160 @@
+dn: cn=config
+objectClass: olcGlobal
+cn: config
+olcPidFile: /usr/local/openldap/slapd.pid
+olcArgsFile: /usr/local/openldap/slapd.args
+olcTLSCipherSuite: HIGH:MEDIUM:+SSLv2
+olcTLSCACertificatePath: /etc/ssl/certs
+olcTLSCertificateKeyFile: /usr/local/openldap/certs/openldap-server.key
+olcTLSCertificateFile: /usr/local/openldap/certs/openldap-server.pem
+olcTLSProtocolMin: 3.3
+# change this to the correct server id
+olcServerID: 1
+
+# dynamic load module
+dn: cn=module,cn=config
+objectClass: olcModuleList
+cn: module
+olcModulepath: /usr/lib/openldap
+olcModuleload: back_mdb.so
+olcModuleload: syncprov.so
+olcModuleload: dyngroup.so
+olcModuleload: memberof.so
+olcModuleload: ppolicy.so
+olcModuleload: refint.so
+olcModuleload: accesslog.so
+olcModuleload: auditlog.so
+olcModuleload: back_monitor.so
+
+
+dn: cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: schema
+
+include: file:///etc/openldap/schema/core.ldif
+include: file:///etc/openldap/schema/collective.ldif
+include: file:///etc/openldap/schema/corba.ldif
+include: file:///etc/openldap/schema/cosine.ldif
+include: file:///etc/openldap/schema/duaconf.ldif
+include: file:///etc/openldap/schema/dyngroup.ldif
+include: file:///etc/openldap/schema/inetorgperson.ldif
+include: file:///etc/openldap/schema/java.ldif
+include: file:///etc/openldap/schema/misc.ldif
+include: file:///etc/openldap/schema/nis.ldif
+include: file:///etc/openldap/schema/openldap.ldif
+include: file:///etc/openldap/schema/pmi.ldif
+include: file:///etc/openldap/schema/ppolicy.ldif
+
+# Frontend settings
+#
+dn: olcDatabase=frontend,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcFrontendConfig
+olcDatabase: frontend
+
+# Config database 0
+dn: olcDatabase=config,cn=config
+objectClass: olcDatabaseConfig
+olcDatabase: config
+olcRootPW: {{OPENLDAP_DATABASE_CONFIG_ROOT_PASSWORD_SSHA}}
+olcAccess: to *
+  by * none
+
+# replication setting for config db
+# remove this if you do not need replication
+olcSyncRepl:  rid=001
+              provider=ldap://{{OPENLDAP_PROVIDER_HOST}}
+              bindmethod=simple
+              binddn="cn=config"
+              credentials={{OPENLDAP_DATABASE_CONFIG_ROOT_PASSWORD}}
+              searchbase="cn=config"
+              type=refreshAndPersist
+              schemachecking=on
+              retry="5 12 60 +"
+              starttls=yes
+olcMirrorMode: TRUE
+
+
+# define overlays for config database 0
+dn: olcOverlay=syncprov,olcDatabase={0}config,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcSyncProvConfig
+olcOverlay: syncprov
+olcSpCheckpoint: 1 2
+olcSpSessionlog: 100
+
+# define monitor database 1
+dn: olcDatabase=monitor,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcMonitorConfig
+olcDatabase: monitor
+olcRootDN: cn=Monitor
+olcRootPW: {{OPENLDAP_DATABASE_MONITOR_ROOT_PASSWORD_SSHA}}
+olcAccess: to *
+  by * none
+
+# Our business database 2
+dn: olcDatabase=mdb,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcMdbConfig
+olcDatabase: mdb
+# dc, for exmaple: dc=exmaple,dc=com
+olcSuffix: {{OPENLDAP_DATABASE_OLC_SUFFIX}}
+# root dn, for exmaple: cn=admin,dc=exmaple,dc=com
+olcRootDN: {{OPENLDAP_DATABASE_ROOT_DN}}
+# root dn password ssha
+olcRootPW: {{OPENLDAP_DATABASE_ROOT_PASSWORD_SSHA}}
+# db data dir, for exmaple: exmaple
+olcDbDirectory: /usr/local/openldap/dbs/{{DB_NAME}}
+olcDbIndex: objectClass eq
+olcDbIndex: mail,cn,uid eq
+olcDbIndex: entryUUID eq
+olcDbIndex: entryCSN eq
+
+# replication setting for business db
+# remove this if you do not need replication
+olcSyncRepl:  rid=002
+              provider=ldap://{{OPENLDAP_PROVIDER_HOST}}
+              bindmethod=simple
+              binddn="{{OPENLDAP_DATABASE_OLC_ROOT_DN}}"
+              credentials={{OPENLDAP_DATABASE_ROOT_PASSWORD}}
+              searchbase="{{OPENLDAP_DATABASE_OLC_SUFFIX}}"
+              type=refreshAndPersist
+              schemachecking=on
+              retry="5 12 60 +"
+              starttls=yes
+olcMirrorMode: TRUE
+
+# define overlays before for mdb database 2
+dn: olcOverlay=syncprov,olcDatabase={2}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcSyncProvConfig
+olcOverlay: syncprov
+olcSpCheckpoint: 100 5
+olcSpSessionlog: 100
+
+# define password ppolicy for mdb database 2
+dn: olcOverlay=ppolicy,olcDatabase={2}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcPPolicyConfig
+olcOverlay: ppolicy
+olcPPolicyDefault: cn=default,ou=password,ou=policies,{{OPENLDAP_DATABASE_OLC_SUFFIX}}
+olcPPolicyHashCleartext: FALSE
+olcPPolicyUseLockout: FALSE
+olcPPolicyForwardUpdates: FALSE
+
+# define memberof overlay for mdb database 2
+dn: olcOverlay=memberof,olcDatabase={2}mdb,cn=config
+objectClass: olcConfig
+objectClass: olcMemberOf
+objectClass: olcOverlayConfig
+objectClass: top
+olcOverlay: memberof
+
+# define refint overlay for mdb database 2
+dn: olcOverlay=refint,olcDatabase={2}mdb,cn=config
+objectClass: olcConfig
+objectClass: olcMemberOf
+objectClass: olcOverlayConfig
+objectClass: top
+olcOverlay: refint

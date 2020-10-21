@@ -1,0 +1,18 @@
+version: "2"
+
+services:
+  openldap:
+    image: {{IMAGE_FULL_NAME}}
+    container_name: openldap-server
+    environment:
+    - TZ=Asia/Shanghai
+    - OPENLDAP_LOG_LEVEL=256
+    network_mode: bridge
+    volumes:
+    - ./openldap:/usr/local/openldap
+    - ./certs:/usr/local/openldap/certs
+    - ./ldifs:/usr/local/openldap/ldifs
+    ports:
+    - 389:389
+    - 636:636
+    restart: on-failure:3
